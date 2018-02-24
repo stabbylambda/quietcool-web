@@ -164,7 +164,8 @@ currentSpeed fan =
             [ radio Api.High "High"
             , radio Api.Medium "Medium"
             , radio Api.Low "Low"
-            ] |> List.take speedCount
+            ]
+                |> List.take speedCount
     in
         div []
             [ text "Current speed"
@@ -213,13 +214,6 @@ view model =
     Grid.container []
         -- Responsive fixed width container
         [ CDN.stylesheet -- Inlined Bootstrap CSS for use with reactor
-        , Grid.row []
-            [ Grid.col []
-                [ Button.linkButton
-                    [ Button.primary, Button.attrs [ href "#" ], Button.onClick Refresh ]
-                    [ text "Refresh" ]
-                ]
-            ]
         , mainContent model
         ]
 
@@ -231,7 +225,7 @@ mainContent model =
             text "Loading ..."
 
         Loading ->
-            text "Loading..."
+            text "Loading ..."
 
         Failure err ->
             text ("Error: " ++ toString err)

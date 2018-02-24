@@ -1,0 +1,6 @@
+0.0.0.0
+browse
+log stdout
+proxy /api {$API_SERVER} {
+  without /api
+}
