@@ -67,6 +67,12 @@ type Speeds
     | Three
 
 
+type CurrentSpeed
+    = High
+    | Medium
+    | Low
+
+
 type alias FanId =
     { ip : String
     , uid : String
@@ -153,6 +159,47 @@ updateSpeeds id speed =
                     "3"
     in
         apiPost (F.print fanUrl id.ip id.uid "updateSpeeds") decodeControlResponse [ ( "speeds", Json.Encode.string desiredSpeed ) ]
+
+
+getCurrentSpeed fan =
+    case fan.status.speed of
+        "3" ->
+            High
+
+        "2" ->
+            Medium
+
+        _ ->
+            Low
+
+getAvailableSpeeds : Fan -> Speeds
+getAvailableSpeeds fan =
+    case fan.status.sequence of
+        "4" ->
+            One
+
+        "1" ->
+            Two
+
+        _ ->
+            Three
+
+
+setSpeed : FanId -> CurrentSpeed -> Cmd (WebData ControlResponse)
+setSpeed id speed =
+    let
+        desiredSpeed =
+            case speed of
+                High ->
+                    "3"
+
+                Medium ->
+                    "2"
+
+                Low ->
+                    "1"
+    in
+        apiPost (F.print fanUrl id.ip id.uid "setCurrentSpeed") decodeControlResponse [ ( "speed", Json.Encode.string desiredSpeed ) ]
 
 
 power : FanId -> Power -> Cmd (WebData ControlResponse)

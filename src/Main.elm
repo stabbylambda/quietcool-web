@@ -43,7 +43,8 @@ type Msg
     | FanControlResponse Api.FanId (WebData Api.ControlResponse)
     | FanDeviceResponse Api.FanId (WebData Api.DeviceResponse)
     | UpdateSpeeds Speeds Fan
-    | UpdatePower Power Fan
+    | SetPower Power Fan
+    | SetSpeed Api.CurrentSpeed Fan
 
 
 toDict : Api.Fans -> Dict String Api.Fan
@@ -64,13 +65,13 @@ updateInfo resp fan =
 
 
 updateFan : (a -> Api.Fan -> Api.Fan) -> Api.FanId -> WebData a -> Model -> Model
-updateFan updateMethod id response model =
+updateFan updateMethod id webResponse model =
     let
-        dictUpdate =
-            RemoteData.map2 (\response -> (Dict.update id.uid <| Maybe.map <| updateMethod response))
+        dictUpdate response fans =
+            Dict.update id.uid (Maybe.map (updateMethod response)) fans
 
         updatedFans =
-            dictUpdate response model.fans
+            RemoteData.map2 dictUpdate webResponse model.fans
     in
         { model | fans = updatedFans }
 
@@ -102,8 +103,11 @@ update msg model =
         FanControlResponse id response ->
             updateFanStatus id response model ! []
 
-        UpdatePower power fan ->
+        SetPower power fan ->
             model ! [ Api.power fan.id power |> Cmd.map (FanControlResponse fan.id) ]
+
+        SetSpeed speed fan ->
+            model ! [ Api.setSpeed fan.id speed |> Cmd.map (FanControlResponse fan.id) ]
 
         UpdateSpeeds speed fan ->
             model ! [ Api.updateSpeeds fan.id speed |> Cmd.map (FanControlResponse fan.id) ]
@@ -125,29 +129,54 @@ powerButton fan =
             not (fan.status.remaining == "0")
     in
         if isOn then
-            button Button.danger (UpdatePower Api.Off) "Turn Off"
+            button Button.danger (SetPower Api.Off) "Turn Off"
         else
-            button Button.success (UpdatePower Api.On) "Turn On"
+            button Button.success (SetPower Api.On) "Turn On"
 
 
-toSpeeds : String -> Api.Speeds
-toSpeeds s =
-    case s of
-        "4" ->
-            Api.One
+currentSpeed : Fan -> Html Msg
+currentSpeed fan =
+    let
+        available =
+            Api.getAvailableSpeeds fan
 
-        "1" ->
-            Api.Two
+        speedCount =
+            case available of
+                Api.One ->
+                    1
 
-        _ ->
-            Api.Three
+                Api.Two ->
+                    2
+
+                Api.Three ->
+                    3
+
+        speeds =
+            Api.getCurrentSpeed fan
+
+        radio speed txt =
+            ButtonGroup.radioButton
+                (speeds == speed)
+                [ Button.primary, Button.onClick <| SetSpeed speed fan ]
+                [ text txt ]
+
+        speedList =
+            [ radio Api.High "High"
+            , radio Api.Medium "Medium"
+            , radio Api.Low "Low"
+            ] |> List.take speedCount
+    in
+        div []
+            [ text "Current speed"
+            , ButtonGroup.radioButtonGroup [] speedList
+            ]
 
 
 speedControls : Fan -> Html Msg
 speedControls fan =
     let
         speeds =
-            toSpeeds fan.status.sequence
+            Api.getAvailableSpeeds fan
 
         radio speed txt =
             ButtonGroup.radioButton
@@ -155,9 +184,13 @@ speedControls fan =
                 [ Button.primary, Button.onClick <| UpdateSpeeds speed fan ]
                 [ text txt ]
     in
-        ButtonGroup.radioButtonGroup []
-            [ radio Api.One "1"
-            , radio Api.Two "2"
+        div []
+            [ text "Available Speeds: "
+            , ButtonGroup.radioButtonGroup []
+                [ radio Api.One "1"
+                , radio Api.Two "2"
+                , radio Api.Three "3"
+                ]
             ]
 
 
@@ -168,6 +201,7 @@ fanCard fan =
             |> Card.headerH4 [] [ text fan.info.name ]
             |> Card.block []
                 [ Card.custom <| powerButton fan
+                , Card.custom <| currentSpeed fan
                 , Card.custom <| speedControls fan
                 ]
             |> Card.view
