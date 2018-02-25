@@ -114,6 +114,7 @@ type alias Fans =
     }
 
 
+apiGet : String -> Decoder a -> Cmd (WebData a)
 apiGet url x =
     get url
         |> withExpect (Http.expectJson x)
@@ -121,12 +122,18 @@ apiGet url x =
         |> RemoteData.sendRequest
 
 
+apiPost : String -> Decoder a -> Json.Encode.Value -> Cmd (WebData a)
 apiPost url x body =
     post url
-        |> withJsonBody (Json.Encode.object body)
+        |> withJsonBody body
         |> withExpect (Http.expectJson x)
         |> toRequest
         |> RemoteData.sendRequest
+
+
+fanPost : FanId -> String -> Decoder a -> Json.Encode.Value -> Cmd (WebData a)
+fanPost id method x body =
+    apiPost (fanUrl id method) x body
 
 
 rootUrl : F.Format r (String -> r)
@@ -134,9 +141,14 @@ rootUrl =
     F.s "/api/fans/" <> F.string
 
 
-fanUrl : F.Format r (String -> String -> String -> r)
-fanUrl =
+apiUrl : F.Format r (String -> String -> String -> r)
+apiUrl =
     rootUrl <> F.s "/" <> F.string <> F.s "/" <> F.string
+
+
+fanUrl : FanId -> String -> String
+fanUrl id method =
+    F.print apiUrl id.ip id.uid method
 
 
 getFans : String -> Cmd (WebData Fans)
@@ -157,8 +169,11 @@ updateSpeeds id speed =
 
                 Three ->
                     "3"
+
+        body =
+            Json.Encode.object [ ( "speeds", Json.Encode.string desiredSpeed ) ]
     in
-        apiPost (F.print fanUrl id.ip id.uid "updateSpeeds") decodeControlResponse [ ( "speeds", Json.Encode.string desiredSpeed ) ]
+        fanPost id "updateSpeeds" decodeControlResponse body
 
 
 getCurrentSpeed fan =
@@ -171,6 +186,7 @@ getCurrentSpeed fan =
 
         _ ->
             Low
+
 
 getAvailableSpeeds : Fan -> Speeds
 getAvailableSpeeds fan =
@@ -198,17 +214,20 @@ setSpeed id speed =
 
                 Low ->
                     "1"
+
+        body =
+            Json.Encode.object [ ( "speed", Json.Encode.string desiredSpeed ) ]
     in
-        apiPost (F.print fanUrl id.ip id.uid "setCurrentSpeed") decodeControlResponse [ ( "speed", Json.Encode.string desiredSpeed ) ]
+        fanPost id "setCurrentSpeed" decodeControlResponse body
 
 
 power : FanId -> Power -> Cmd (WebData ControlResponse)
 power id power =
     let
         desiredState =
-            if power == On then
-                "on"
-            else
-                "off"
+            power == On
+
+        body =
+            Json.Encode.object [ ( "on", Json.Encode.bool desiredState ) ]
     in
-        apiPost (F.print fanUrl id.ip id.uid desiredState) decodeControlResponse []
+        fanPost id "power" decodeControlResponse body
